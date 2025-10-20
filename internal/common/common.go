@@ -147,14 +147,16 @@ type Meta struct {
 }
 
 type Holding struct {
-	Value       float64
-	Cost        float64
-	Quantity    float64
-	UnitValue   float64
-	UnitCost    float64
-	DayChange   HoldingChange
-	TotalChange HoldingChange
-	Weight      float64
+	Value            float64
+	Cost             float64
+	Quantity         float64
+	UnitValue        float64
+	UnitCost         float64
+	DayChange        HoldingChange
+	TotalChange      HoldingChange
+	Weight           float64
+	TargetPriceAbove *float64
+	TargetPriceBelow *float64
 }
 
 // Currency is the original and converted currency if applicable
@@ -248,16 +250,18 @@ const (
 
 // AssetQuote represents a price quote and related attributes for a single security
 type AssetQuote struct {
-	Name          string
-	Symbol        string
-	Class         AssetClass
-	Currency      Currency
-	QuotePrice    QuotePrice
-	QuoteExtended QuoteExtended
-	QuoteFutures  QuoteFutures
-	QuoteSource   QuoteSource
-	Exchange      Exchange
-	Meta          Meta
+	Name             string
+	Symbol           string
+	Class            AssetClass
+	Currency         Currency
+	QuotePrice       QuotePrice
+	QuoteExtended    QuoteExtended
+	QuoteFutures     QuoteFutures
+	QuoteSource      QuoteSource
+	Exchange         Exchange
+	Meta             Meta
+	TargetPriceAbove *float64
+	TargetPriceBelow *float64
 }
 
 type MessageUpdate[T any] struct {

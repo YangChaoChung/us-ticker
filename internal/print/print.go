@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/achannarasappa/ticker/v5/internal/asset"
 	c "github.com/achannarasappa/ticker/v5/internal/common"
@@ -135,6 +136,26 @@ func convertSummaryToCSV(summary asset.HoldingSummary) string {
 	w.WriteAll(rows)
 
 	return b.String()
+}
+
+// Print is a struct for printing output
+type Print struct {
+	w io.Writer
+}
+
+// New creates a new Print struct
+func New(w io.Writer) *Print {
+	return &Print{w: w}
+}
+
+// Render prints the assets to the writer
+func (p *Print) Render(assets []c.Asset, _ *asset.HoldingSummary, options Options) {
+	if options.Format == "csv" {
+		fmt.Fprintln(p.w, convertAssetsToCSV(assets))
+		return
+	}
+
+	fmt.Fprintln(p.w, convertAssetsToJSON(assets))
 }
 
 // Run prints holdings to the terminal
