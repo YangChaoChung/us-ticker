@@ -199,6 +199,20 @@ func (ls *LiveScreener) Run(ctx context.Context, cfg Config) (Result, error) {
 
 	initial := mon.GetAssetGroupQuote().AssetQuotes
 
+	// Create a lookup for the target prices from the initial screener run.
+	targetsBySymbol := make(map[string]c.AssetQuote)
+	for _, q := range quotes {
+		targetsBySymbol[q.Symbol] = q
+	}
+
+	// Merge the target prices into the initial results from the monitor.
+	for i, q := range initial {
+		if targets, ok := targetsBySymbol[q.Symbol]; ok {
+			initial[i].TargetPriceAbove = targets.TargetPriceAbove
+			initial[i].TargetPriceBelow = targets.TargetPriceBelow
+		}
+	}
+
 	stopFn := func() {
 		stopOnce.Do(func() {
 			close(done)

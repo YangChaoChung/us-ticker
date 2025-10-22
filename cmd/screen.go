@@ -29,6 +29,7 @@ var (
 	screenLiveTargetPriceAbove float64
 	screenLiveTargetPriceBelow float64
 	screenLiveRefresh          int
+	screenerWatchlistFile      string
 )
 
 // screenCmd represents the screen command
@@ -43,6 +44,12 @@ ticker screen --universe nasdaq100 --min-market-cap 100000000000
 Example (live monitoring):
 ticker screen --universe=AAPL --target-price-above=200.00 --target-price-below=120.00 --live`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if screenerWatchlistFile != "" {
+			if err := universe.RegisterUniverseFromFile(universe.MyWatchlist, screenerWatchlistFile); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: could not load watchlist file: %v\n", err)
+			}
+		}
+
 		if screenLive {
 			runLiveScreener(cmd, args)
 		} else {
@@ -119,7 +126,11 @@ func runLiveScreener(cmd *cobra.Command, args []string) {
 	}
 	defer result.Stop()
 
-	result.Initial = asset.SetTargetPrices(result.Initial, screenLiveTargetPriceAbove, screenLiveTargetPriceBelow)
+	// Target prices are now set by the screener from the universe definition.
+	// The global flags are still used for ad-hoc single-symbol screening.
+	if len(result.Initial) == 1 {
+		result.Initial = asset.SetTargetPrices(result.Initial, screenLiveTargetPriceAbove, screenLiveTargetPriceBelow)
+	}
 
 	// Process initial assets for alerts
 	initialAssetsForAlerts := make([]c.Asset, len(result.Initial))
@@ -172,17 +183,38 @@ func runLiveScreener(cmd *cobra.Command, args []string) {
 				return
 			}
 
-			current[update.Quote.Symbol] = update.Quote
+			// Get the existing quote to retrieve target prices from the initial universe/watchlist load.
+			existingQuote, ok := current[update.Quote.Symbol]
+			if !ok {
+				// This should not happen if the initial snapshot was processed correctly, but we'll skip if it does.
+				continue
+			}
+
+			// Apply ad-hoc target prices if set via flags for a single symbol. This overrides universe/watchlist targets.
+			if len(current) == 1 {
+				if screenLiveTargetPriceAbove > 0 {
+					existingQuote.TargetPriceAbove = &screenLiveTargetPriceAbove
+				}
+				if screenLiveTargetPriceBelow > 0 {
+					existingQuote.TargetPriceBelow = &screenLiveTargetPriceBelow
+				}
+			}
+
+			// Create an asset for alert processing with the new price but the original target prices.
 			asset.ProcessAssets([]c.Asset{
 				{
 					Symbol:     update.Quote.Symbol,
 					QuotePrice: update.Quote.QuotePrice,
 					Holding: c.Holding{
-						TargetPriceAbove: &screenLiveTargetPriceAbove,
-						TargetPriceBelow: &screenLiveTargetPriceBelow,
+						TargetPriceAbove: existingQuote.TargetPriceAbove,
+						TargetPriceBelow: existingQuote.TargetPriceBelow,
 					},
 				},
 			})
+
+			// Update the current quote with the new price information for the next snapshot render.
+			existingQuote.QuotePrice = update.Quote.QuotePrice
+			current[update.Quote.Symbol] = existingQuote
 
 		case <-snapshotTicker.C:
 			fmt.Fprintf(os.Stdout, "\nSnapshot @ %s\n", time.Now().Format(time.RFC3339))
@@ -209,4 +241,5 @@ func init() {
 	screenCmd.Flags().Float64Var(&screenLiveTargetPriceAbove, "target-price-above", 0, "Target price for above alerts (requires --live)")
 	screenCmd.Flags().Float64Var(&screenLiveTargetPriceBelow, "target-price-below", 0, "Target price for below alerts (requires --live)")
 	screenCmd.Flags().IntVar(&screenLiveRefresh, "refresh", 15, "Refresh interval in seconds (requires --live)")
+	screenCmd.Flags().StringVar(&screenerWatchlistFile, "watchlist-file", "", "path to a JSON file to define a custom universe")
 }
